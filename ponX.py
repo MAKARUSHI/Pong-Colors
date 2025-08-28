@@ -1,6 +1,7 @@
 import pygame as p
-from random import choice, uniform
+from random import choice, uniform, randint
 import math
+from time import time
 
 
 class Player(p.sprite.Sprite):
@@ -22,10 +23,12 @@ class Player(p.sprite.Sprite):
             self.image.fill((255, 0, 0))
             self.rect = self.image.get_rect(midleft=(20, screenHeight / 2))
             self.useKey = p.K_e
+            self.color = (255, 0, 0)
         else:
             self.image.fill((0, 255, 0))
             self.rect = self.image.get_rect(midright=(screenWidth - 20, screenHeight / 2))
             self.useKey = p.K_k
+            self.color =(0, 255, 0)
 
         self.posY = float(self.rect.y)
 
@@ -55,18 +58,24 @@ class Player(p.sprite.Sprite):
                 startTime = p.time.get_ticks()
 
         if keys[p.K_r]:
-            global gameTime
+            restart(self.ball)
+        """ global squarePause
+            global spellActive
+            global spellGroup
+            spellGroup.empty()
+            spellActive = True
+            squarePause = False
             startTime = None
-            gameTime = 5000
             self.ball.playing = False
             self.ball.ready = False
-            self.posY = screenHeight // 2 
-            self.ball.restart()
+            self.posY = screenHeight // 2
+            self.image = p.transform.scale(self.image, (10, 70))
+            self.rect = self.image.get_rect(center=self.rect.center)
+            self.ball.restart()"""
 
 
     def update(self):
         self.input()
-        #self.movement()
         self.playing = self.ball.playing
         self.choicePlayer = self.ball.choicePlayer
 
@@ -77,14 +86,15 @@ class Ball(p.sprite.Sprite):
         self.image = p.Surface((15, 15))
         self.image.fill((0, 0, 255))
         self.rect = self.image.get_rect(center=(0,0))
-
+        self.name = "ball"
         self.lastPlayerTouchColor = None
+        self.lastPlayerTouchName = None
         self.speed = 200
         self.players = players
         self.ready = False
         self.playing = False
         self.choicePlayer = None
-        self.direction = p.Vector2(1, 0)  # Default direction
+        self.direction = p.Vector2(1, 0)
 
     def restart(self):
         global gameTime
@@ -97,7 +107,7 @@ class Ball(p.sprite.Sprite):
         angleDeg = uniform(-60, 60)
         baseDirection = 1 if self.choicePlayer.name == "pOne" else -1
         self.direction = p.Vector2(baseDirection, 0).rotate(angleDeg).normalize()
-        self.lastPlayerTouchColor = self.choicePlayer.image.get_at((0,0))
+        self.lastPlayerTouchColor = self.choicePlayer.color
         self.ready = True
 
     def movement(self):
@@ -116,15 +126,9 @@ class Ball(p.sprite.Sprite):
 
         #left right wall
         if self.rect.left <= 19:
-            self.playing = False
-            squarePause = True
-            check = False
             finalScore = checkSquareGrid("Green wins")
 
         if self.rect.right >= screenWidth - 19:
-            self.playing = False
-            squarePause = True
-            check = False
             finalScore = checkSquareGrid("Red wins")
 
         for player in self.players:
@@ -135,7 +139,8 @@ class Ball(p.sprite.Sprite):
 
                 playerDirection = 1 if player.name == "pOne" else -1
                 self.direction = p.Vector2(playerDirection, 0).rotate(bounceAngle * player.direction).normalize()
-                self.lastPlayerTouchColor = player.image.get_at((0,0))
+                self.lastPlayerTouchColor = player.color
+                self.lastPlayerTouchName = player.name
 
         self.rect.center += self.direction * self.speed * dt
 
@@ -157,7 +162,7 @@ class Ball(p.sprite.Sprite):
 
 
 
-class gridSquare(p.sprite.Sprite):
+class GridSquare(p.sprite.Sprite):
     def __init__(self, group, players,ball):
         super().__init__(group)        
         self.image = p.Surface((12,12))
@@ -175,6 +180,82 @@ class gridSquare(p.sprite.Sprite):
 
 
 
+
+class Spell(p.sprite.Sprite):
+    def __init__(self, group, ball, players):
+        super().__init__(group)
+        self.image = p.Surface((70,70))
+        self.image.fill((200,0,200))
+        self.spellActive = False
+        self.players = players
+        box = (70,100,200,500)
+        chosenBox = choice([box[0], screenWidth - box[0] - box[2]])
+        self.ball = ball
+
+        x = randint(chosenBox,chosenBox + box[2])
+        y = randint(box[1], box[3])
+
+        self.rect = self.image.get_rect(center=(x,y))
+
+
+
+    def collisions(self):
+        if self.rect.colliderect(self.ball.rect):
+            self.wichPlayer = self.ball.lastPlayerTouchName
+
+            if self.spellActive == False:
+                self.allSpells = ["invisible", "large", "small", "bomb"]
+                self.spell = choice(self.allSpells)
+                self.spellActive = True
+                for pla in players:
+                    if pla.name != self.wichPlayer:
+                        self.opponentPlayer = pla
+                print(self.spell)
+
+                match self.spell:
+                    case "invisible":
+                        self.invisible()
+                    case "large":
+                        self.large()
+                    case "small":
+                        self.small()
+                    case "bomb":
+                        self.bomb()
+                self.kill()
+
+    def invisible(self):
+        global invisiblePlayerTimer
+        global invisiblePlayer
+        self.opponentPlayer.image.fill((255,255,255))
+        invisiblePlayer = self.opponentPlayer
+        invisiblePlayerTimer = p.time.get_ticks() + 10000
+
+    def large(self):
+        global ballNeedScale
+        self.scale = 2
+        self.scaleTimer = 1
+        scaleBall(self.ball,2,2)
+        ballNeedScale = True
+
+    def small(self):
+        global smallPlayerTimer
+        smallPlayerTimer = p.time.get_ticks() + 15000
+        scaleBall(self.opponentPlayer, 1, 0.6)
+    
+    def bomb(self):
+        bombX = randint(screenWidth // 2 - 227,827)
+        bombY = randint(screenHeight // 2 - 240,590)
+        bombSprite(bombX, bombY, self.ball.lastPlayerTouchColor)
+        
+
+
+    def update(self): 
+        self.collisions()
+
+
+
+
+
 def calculateBallDirection(angleRad, speed, direction):
     velocityX = math.cos(angleRad) * speed * direction
     velocityY = math.sin(angleRad) * speed * direction
@@ -183,16 +264,14 @@ def calculateBallDirection(angleRad, speed, direction):
     ball.rect.y += velocityY * dt
 
 
-def clampAngle(angleRad, minVerticalComponent=0.3):
-    sin_y = abs(math.sin(angleRad))
-    if sin_y < minVerticalComponent:
-        angleSign = 1 if angleRad >= 0 else -1
-        angleRad = angleSign * math.asin(minVerticalComponent)
-    return angleRad
-
-
 def checkSquareGrid(winType):
+    global startTime
     global check
+    global squarePause
+
+    startTime = False
+    ball.playing = False
+    squarePause = True
     if winType == "time":
         red = 0
         green = 0
@@ -210,10 +289,10 @@ def checkSquareGrid(winType):
         else:
             redProcentages = 0
             greenProcentages = 0
-
-        if red > green:
+       
+        if redProcentages > greenProcentages:
             winnerText = "Red wins"
-        elif green > red:
+        elif greenProcentages > redProcentages:
             winnerText = "Green wins"
         else:
             winnerText = "Draw"
@@ -227,11 +306,56 @@ def checkSquareGrid(winType):
         
     ball.rect.center = ((-20,-20))
         
-    score = scoreFont.render(scoreText, True, (0,255,255))
+    score = scoreFont.render(scoreText, True, (0,50,200))
     check = True
     return score
     
+def scaleBall(self,scaleX, scaleY):
+    global ballNeedScale
+    global scaleBallPlayer
+    global smallPlayer
+    if self.name == "ball" or self.image.get_height() == 70 or (scaleY == 1.55 and self.image.get_height() != 70):
+        w = int(self.image.get_width() * scaleX)
+        h = int(self.image.get_height() * scaleY)
+        self.image = p.transform.scale(self.image, (w, h))
+        self.rect = self.image.get_rect(center=self.rect.center)
 
+        if self.name == "ball":
+            scaleBallPlayer = self.lastPlayerTouchName
+            ballNeedScale = False
+        elif scaleY == 0.6:
+            smallPlayer = self
+
+
+def bombSprite(x,y,color):
+    global bomb
+    bomb['sprite'] = p.Surface((50,50))
+    bomb['sprite'].fill((255,255,255))
+    bomb['rect'] = bomb['sprite'].get_rect(center=(x, y))
+    for sq in gridGroup:
+        if sq.rect.colliderect(bomb['rect']):
+            sq.image.fill(color)
+
+
+def restart(ball):
+    global squarePause
+    global spellActive
+    global spellGroup
+    global startTime
+    global check
+    spellGroup.empty()
+    spellActive = True
+    check = False
+    squarePause = False
+    startTime = None
+    ball.playing = False
+    ball.ready = False
+    for player in players:
+        player.image.fill(player.color)
+        player.posY = screenHeight // 2
+        player.image = p.transform.scale(player.image, (10, 70))
+        player.rect = player.image.get_rect(center=player.rect.center)
+    ball.restart()
 
 p.init()
 
@@ -247,6 +371,19 @@ gameTime = 120000
 squarePause = False
 check = False
 finalScore = None
+scaleBallPlayer = None
+spellActive = True
+ballNeedScale = False
+
+smallPlayer = None
+smallPlayerTimer = None
+invisiblePlayerTimer = None
+invisiblePlayer = None
+bomb = {
+    "sprite": None,
+    "rect": None
+}
+
 #text
 timeFont = p.font.SysFont("Arial", 60)
 scoreFont = p.font.SysFont("Arial", 100)
@@ -269,9 +406,10 @@ for player in players:
 gridGroup = p.sprite.Group()
 for x in range(screenWidth // 2 - 227,827,13):
     for y in range(screenHeight // 2 - 240,590,13):
-        square = gridSquare(gridGroup, players, ball)
+        square = GridSquare(gridGroup, players, ball)
         square.rect = square.image.get_rect(topleft=(x,y))
 
+spellGroup = p.sprite.Group()
 
 
 running = True
@@ -280,17 +418,25 @@ while running:
     for event in p.event.get():
         if event.type == p.QUIT:
             running = False
-
             
     
         if event.type == p.KEYDOWN:
             if squarePause:
                 if event.key == p.K_SPACE:
-                    squarePause = False
+                    restart(ball)
+                """squarePause = False
                     ball.ready = False
                     ball.playing = False
                     startTime = None
                     check = False
+                    spellGroup.empty()
+                    spellActive = True
+                    for player in players:
+                        player.image.fill(player.color)
+                        player.posY == screenHeight // 2
+                    invisiblePlayerTimer = 0
+                    smallPlayerTimer = None"""
+
 
 
     screen.fill((255,255,255))
@@ -304,11 +450,33 @@ while running:
         timeSecRect = timeSecText.get_rect(center=(screenWidth//2, 50))
         screen.blit(timeSecText, timeSecRect)
 
-        if remaSeconds == 0 and check == False:
-            ball.playing = False
-            squarePause = True
+        if remaSeconds <= 0 and check == False:
             finalScore = checkSquareGrid("time")
-    
+        
+        if not spellActive and time() >= spellSpawnTime:
+            spellGroup.add(Spell(spellGroup, ball, players))
+            spellActive = True
+
+        
+        if spellActive and len(spellGroup) == 0:
+            spellActive = False
+            spellSpawnTime = time() + uniform(20,25)
+
+        if ballNeedScale:
+            if scaleBallPlayer != ball.lastPlayerTouchName:
+                scaleBall(ball, 0.5, 0.5)
+
+        if invisiblePlayerTimer:
+            if invisiblePlayerTimer <= p.time.get_ticks():
+                invisiblePlayer.image.fill((invisiblePlayer.color))
+                invisiblePlayerTimer = None
+        if smallPlayerTimer:
+            if smallPlayerTimer <= p.time.get_ticks():
+                scaleBall(smallPlayer,1,1.55)
+                smallPlayerTimer = None
+        if bomb['sprite']:
+            screen.blit(bomb['sprite'], bomb['rect'])
+
 
     playerGroup.draw(screen)
 
@@ -317,12 +485,11 @@ while running:
     playerGroup.update()
     gridGroup.draw(screen)
     gridGroup.update()
-
+    spellGroup.draw(screen)
+    spellGroup.update()
     if squarePause:
-        finalScoreRect = finalScore.get_rect(center=(screenWidth//2, screenHeight//2))
+        finalScoreRect = finalScore.get_rect(center=(screenWidth//2, 60))
         screen.blit(finalScore, finalScoreRect)
-
-
     
     p.display.update()
 
