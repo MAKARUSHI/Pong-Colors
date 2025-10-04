@@ -2,6 +2,7 @@ import pygame as p
 from random import choice, uniform, randint
 import math
 from time import time
+import esp_serial
 
 
 class Player(p.sprite.Sprite):
@@ -17,12 +18,12 @@ class Player(p.sprite.Sprite):
         self.startTime = None
 
 
-
+        self.s = 1
 
         if self.name == "pOne":
             self.image.fill((255, 0, 0))
             self.rect = self.image.get_rect(midleft=(20, screenHeight / 2))
-            self.useKey = p.K_e
+            self.useKey = 0
             self.color = (255, 0, 0)
         else:
             self.image.fill((0, 255, 0))
@@ -37,11 +38,23 @@ class Player(p.sprite.Sprite):
         speed = 200
         global startTime
 
+        
 
         if self.name == "pOne":
-            playerDirection = int(keys[p.K_s]) - int(keys[p.K_w])
+            #playerDirection = int(keys[p.K_s]) - int(keys[p.K_w])
+            if self.x > 3000:
+                playerDirection = 1
+            elif self.x < 1000:
+                playerDirection = -1
+            else:
+                playerDirection = 0
         elif self.name == "pTwo":
             playerDirection = int(keys[p.K_l]) - int(keys[p.K_o])
+            print(self.ball.rect.center[1])
+            if self.ball.rect.center[1] > self.rect.center[1]:
+                playerDirection = 1
+            elif self.ball.rect.center[1] < self.rect.center[1]:
+                playerDirection = -1
 
         self.posY += playerDirection * speed * dt
 
@@ -53,28 +66,20 @@ class Player(p.sprite.Sprite):
         self.rect.y = int(self.posY) 
 
         if self.playing == False and self.choicePlayer.name == self.name:
-            if keys[self.useKey]:
+            if keys[self.useKey] or self.s == 0:
                 self.ball.playing = True
                 startTime = p.time.get_ticks()
 
         if keys[p.K_r]:
             restart(self.ball)
-        """ global squarePause
-            global spellActive
-            global spellGroup
-            spellGroup.empty()
-            spellActive = True
-            squarePause = False
-            startTime = None
-            self.ball.playing = False
-            self.ball.ready = False
-            self.posY = screenHeight // 2
-            self.image = p.transform.scale(self.image, (10, 70))
-            self.rect = self.image.get_rect(center=self.rect.center)
-            self.ball.restart()"""
 
 
     def update(self):
+        controllerData = esp_serial.getSerialData()
+        if controllerData["name"] == "controller0" and self.name == "pOne":
+            
+            self.x = controllerData["joXVal"]
+            self.s = controllerData["joSVal"]
         self.input()
         self.playing = self.ball.playing
         self.choicePlayer = self.ball.choicePlayer
@@ -363,7 +368,7 @@ clock = p.time.Clock()
 
 screenWidth = 1200
 screenHeight = 700
-screen = p.display.set_mode((screenWidth, screenHeight), p.NOFRAME)
+screen = p.display.set_mode((screenWidth, screenHeight))
 p.display.set_caption("PongX")
 
 startTime = None
@@ -424,18 +429,6 @@ while running:
             if squarePause:
                 if event.key == p.K_SPACE:
                     restart(ball)
-                """squarePause = False
-                    ball.ready = False
-                    ball.playing = False
-                    startTime = None
-                    check = False
-                    spellGroup.empty()
-                    spellActive = True
-                    for player in players:
-                        player.image.fill(player.color)
-                        player.posY == screenHeight // 2
-                    invisiblePlayerTimer = 0
-                    smallPlayerTimer = None"""
 
 
 
@@ -490,6 +483,8 @@ while running:
     if squarePause:
         finalScoreRect = finalScore.get_rect(center=(screenWidth//2, 60))
         screen.blit(finalScore, finalScoreRect)
+    
+    
     
     p.display.update()
 
